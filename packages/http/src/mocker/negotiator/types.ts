@@ -17,4 +17,5 @@ export type NegotiatePartialOptions = {
   code: string;
   dynamic: boolean;
   exampleKey?: string;
+  url?: string;
 };

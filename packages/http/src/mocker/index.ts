@@ -240,7 +240,7 @@ function negotiateResponse(
     input.validations,
     validation => validation.severity
   );
-
+  mockConfig.url = input.data.url.path;
   if (errors && A.isNonEmpty(input.validations)) {
     return createInvalidInputResponse(input.validations, resource.responses, mockConfig);
   } else {

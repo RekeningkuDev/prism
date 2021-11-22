@@ -46,10 +46,25 @@ type BodyNegotiationResult = Omit<IHttpNegotiationResult, 'headers'>;
 
 const helpers = {
   negotiateByPartialOptionsAndHttpContent(
-    { code, exampleKey, dynamic }: NegotiatePartialOptions,
+    { code, exampleKey, dynamic, url }: NegotiatePartialOptions,
     httpContent: IMediaTypeContent
   ): E.Either<Error, BodyNegotiationResult> {
     const { mediaType } = httpContent;
+
+    const exampleByUrl = findExampleByKey(httpContent, url!);
+
+    if (exampleByUrl._tag != 'None') {
+      return pipe(
+        exampleByUrl,
+        E.fromOption(() =>
+          ProblemJsonError.fromTemplate(
+            NOT_FOUND,
+            `Response for contentType: ${mediaType} and exampleKey: ${exampleKey} does not exist.`
+          )
+        ),
+        E.map(bodyExample => ({ code, mediaType, bodyExample }))
+      );
+    }
 
     if (exampleKey) {
       return pipe(
@@ -117,7 +132,10 @@ const helpers = {
           }),
         content =>
           pipe(
-            helpers.negotiateByPartialOptionsAndHttpContent({ code, dynamic, exampleKey }, content),
+            helpers.negotiateByPartialOptionsAndHttpContent(
+              { code, dynamic, exampleKey, url: partialOptions.url },
+              content
+            ),
             E.map(contentNegotiationResult => ({ headers, ...contentNegotiationResult }))
           )
       )
@@ -130,8 +148,7 @@ const helpers = {
     response: IHttpOperationResponse
   ): RE.ReaderEither<Logger, Error, IHttpNegotiationResult> {
     const { code, headers = [] } = response;
-    const { mediaTypes, dynamic, exampleKey } = desiredOptions;
-
+    const { mediaTypes, dynamic, exampleKey, url } = desiredOptions;
     return logger => {
       if (requestMethod === 'head') {
         logger.info(`Responding with an empty body to a HEAD request.`);
@@ -150,6 +167,7 @@ const helpers = {
                 code,
                 dynamic,
                 exampleKey,
+                url,
               },
               response
             );
@@ -180,6 +198,7 @@ const helpers = {
                         code,
                         dynamic,
                         exampleKey,
+                        url,
                       },
                       content
                     ),
@@ -343,6 +362,7 @@ const helpers = {
       exampleKey?: string
     ) => {
       logger.success(`The response ${response.code} has an example. I'll keep going with this one`);
+
       return pipe(
         O.fromNullable(exampleKey),
         O.fold(
@@ -380,20 +400,21 @@ const helpers = {
 
     return pipe(
       helpers.findResponse(httpResponses, statusCodes),
-      R.chain(foundResponse => logger =>
-        pipe(
-          foundResponse,
-          E.fromOption(() => new Error('No 422, 400, or default responses defined')),
-          E.chain(response =>
-            pipe(
-              O.fromNullable(response.contents && response.contents.find(contentHasExamples)),
-              O.fold(
-                () => buildResponseBySchema(response, logger),
-                contentWithExamples => buildResponseByExamples(response, contentWithExamples, logger, exampleKey)
+      R.chain(
+        foundResponse => logger =>
+          pipe(
+            foundResponse,
+            E.fromOption(() => new Error('No 422, 400, or default responses defined')),
+            E.chain(response =>
+              pipe(
+                O.fromNullable(response.contents && response.contents.find(contentHasExamples)),
+                O.fold(
+                  () => buildResponseBySchema(response, logger),
+                  contentWithExamples => buildResponseByExamples(response, contentWithExamples, logger, exampleKey)
+                )
               )
             )
           )
-        )
       )
     );
   },

@@ -1,4 +1,4 @@
-import { IHttpContent, IHttpParam, INodeExample, INodeExternalExample } from '@stoplight/types';
+import { IHttpContent, IHttpParam, INodeExample, INodeExternalExample, INodeUrlExample } from '@stoplight/types';
 import * as O from 'fp-ts/Option';
 import { pipe } from 'fp-ts/function';
 import { JSONSchema } from '../../types';
@@ -33,7 +33,9 @@ export function improveSchema(schema: JSONSchema): JSONSchema {
   return newSchema;
 }
 
-function pickStaticExample(examples: O.Option<Array<INodeExample | INodeExternalExample>>): O.Option<unknown> {
+function pickStaticExample(
+  examples: O.Option<Array<INodeExample | INodeExternalExample | INodeUrlExample>>
+): O.Option<unknown> {
   return pipe(
     examples,
     O.chainNullableK(exs => exs[Math.floor(Math.random() * exs.length)]),
